@@ -18,15 +18,15 @@ export function ConditionNode({ data }: NodeProps<ConditionNodeData>) {
   const conditionType = data.conditionType || 'FIELD'
   
   let displayText: string
-  let hasConfig = false
+  let hasConfig: boolean = false
   
   if (conditionType === 'HTTP_REQUEST') {
-    const hasUrl = data.httpConfig?.url && data.httpConfig.url.trim() !== ''
-    const hasResponseField = data.httpConfig?.responseField && data.httpConfig.responseField.trim() !== ''
+    const hasUrl = Boolean(data.httpConfig?.url && data.httpConfig.url.trim() !== '')
+    const hasResponseField = Boolean(data.httpConfig?.responseField && data.httpConfig.responseField.trim() !== '')
     hasConfig = hasUrl && hasResponseField
     
-    if (hasConfig) {
-      const method = data.httpConfig?.method || 'GET'
+    if (hasConfig && data.httpConfig) {
+      const method = data.httpConfig.method || 'GET'
       const responseField = data.httpConfig.responseField
       const operator = data.httpConfig.operator || 'EQUALS'
       const value = data.httpConfig.value
@@ -35,7 +35,7 @@ export function ConditionNode({ data }: NodeProps<ConditionNodeData>) {
       displayText = 'Configure a condição HTTP'
     }
   } else {
-    const hasField = data.field && data.field.trim() !== ''
+    const hasField = Boolean(data.field && data.field.trim() !== '')
     hasConfig = hasField
     displayText = hasField 
       ? `${data.field} ${data.operator || 'EQUALS'} ${String(data.value || '')}`
