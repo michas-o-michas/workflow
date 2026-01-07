@@ -88,6 +88,17 @@ export function FlowBuilder({
    */
   const onConnect = useCallback(
     (params: Connection) => {
+      // Valida que source e target não são null
+      if (!params.source || !params.target) {
+        logger.warn('Tentativa de criar edge com source ou target null', {
+          source: params.source,
+          target: params.target,
+          sourceHandle: params.sourceHandle,
+          targetHandle: params.targetHandle,
+        })
+        return
+      }
+
       const sourceNode = nodesRef.current.find((n) => n.id === params.source)
       
       // Valida conexões de condition nodes
@@ -103,6 +114,8 @@ export function FlowBuilder({
       const newEdge: Edge = {
         ...params,
         id: `edge-${params.source}-${params.target}-${params.sourceHandle || 'default'}-${Date.now()}`,
+        source: params.source,
+        target: params.target,
         sourceHandle: params.sourceHandle || undefined,
         targetHandle: params.targetHandle || undefined,
       }

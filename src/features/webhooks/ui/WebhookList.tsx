@@ -359,7 +359,7 @@ export function WebhookList({ onTestWebhook }: WebhookListProps) {
           <DialogHeader>
             <DialogTitle>Testar Webhook</DialogTitle>
             <DialogDescription>
-              Edite o JSON abaixo e clique em "Enviar" para testar o webhook
+              Edite o JSON abaixo e clique em &quot;Enviar&quot; para testar o webhook
             </DialogDescription>
           </DialogHeader>
           

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
 import { FlowBuilder } from '@/features/flow-builder'
@@ -20,13 +20,7 @@ export default function EditFlowBuilderPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
-  useEffect(() => {
-    if (flowId) {
-      fetchFlow()
-    }
-  }, [flowId])
-
-  const fetchFlow = async () => {
+  const fetchFlow = useCallback(async () => {
     try {
       const response = await fetch(`/api/flows/${flowId}?t=${Date.now()}`, {
         cache: 'no-store',
@@ -47,7 +41,13 @@ export default function EditFlowBuilderPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [flowId])
+
+  useEffect(() => {
+    if (flowId) {
+      fetchFlow()
+    }
+  }, [flowId, fetchFlow])
 
   const saveFlowToDatabase = async (updatedNodes: Node<FlowNodeData>[], updatedEdges: Edge[]) => {
     if (!flow || !flowId) {
