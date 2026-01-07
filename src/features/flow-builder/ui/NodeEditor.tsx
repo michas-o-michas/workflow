@@ -396,7 +396,7 @@ export function NodeEditor({ node, onUpdate, onDelete }: NodeEditorProps) {
                     </p>
                   )}
                   <p className="text-xs text-gray-500 mt-1">
-                    Caminho do campo na resposta JSON (ex: "status" ou "data.active")
+                    Caminho do campo na resposta JSON (ex: &quot;status&quot; ou &quot;data.active&quot;)
                   </p>
                 </div>
                 <div className="space-y-2">
