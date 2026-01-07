@@ -363,16 +363,41 @@ export class FlowEngine {
   ): Promise<void> {
     const conditionData = node.data as ConditionNodeData
     
-    // Valida se o campo foi configurado
-    if (!conditionData.field || conditionData.field.trim() === '') {
-      const errorMsg = `Nó de condição ${node.id}: Campo do payload não configurado. Configure o campo no editor do nó.`
-      context.errors.push(errorMsg)
-      logger.error(errorMsg)
-      return
-    }
+    // Determina o tipo de condição (padrão: FIELD para compatibilidade)
+    const conditionType = conditionData.conditionType || 'FIELD'
     
-    // Avalia a condição
-    const conditionMet = this.evaluateCondition(conditionData, context.webhookData.data)
+    let conditionMet: boolean
+    
+    if (conditionType === 'HTTP_REQUEST') {
+      // Condição HTTP: faz request e avalia resposta
+      if (!conditionData.httpConfig) {
+        const errorMsg = `Nó de condição ${node.id}: Configuração HTTP não encontrada. Configure a condição HTTP no editor do nó.`
+        context.errors.push(errorMsg)
+        logger.error(errorMsg)
+        return
+      }
+      
+      try {
+        conditionMet = await this.evaluateHttpCondition(conditionData.httpConfig, context.webhookData.data)
+      } catch (error) {
+        const errorMsg = `Nó de condição ${node.id}: Erro ao executar request HTTP: ${error instanceof Error ? error.message : String(error)}`
+        context.errors.push(errorMsg)
+        logger.error(errorMsg, error)
+        // Em caso de erro, considera como FALSE (caminho NO)
+        conditionMet = false
+      }
+    } else {
+      // Condição FIELD: avalia campo do payload
+      if (!conditionData.field || conditionData.field.trim() === '') {
+        const errorMsg = `Nó de condição ${node.id}: Campo do payload não configurado. Configure o campo no editor do nó.`
+        context.errors.push(errorMsg)
+        logger.error(errorMsg)
+        return
+      }
+      
+      // Avalia a condição
+      conditionMet = this.evaluateCondition(conditionData, context.webhookData.data)
+    }
 
     // Encontra todas as edges saindo deste nó
     const edges = flow.edges.filter((edge) => edge.source === node.id)
@@ -383,25 +408,49 @@ export class FlowEngine {
     const targetEdges = edges.filter((edge) => edge.sourceHandle === expectedHandle)
 
     // Log principal da condição - sempre visível
-    const operatorSymbol = {
-      EQUALS: '==',
-      NOT_EQUALS: '!=',
-      CONTAINS: 'contém',
-      GREATER_THAN: '>',
-      LESS_THAN: '<',
-    }[conditionData.operator] || conditionData.operator
+    if (conditionType === 'HTTP_REQUEST' && conditionData.httpConfig) {
+      const operatorSymbol = {
+        EQUALS: '==',
+        NOT_EQUALS: '!=',
+        CONTAINS: 'contém',
+        GREATER_THAN: '>',
+        LESS_THAN: '<',
+      }[conditionData.httpConfig.operator] || conditionData.httpConfig.operator
 
-    logger.condition(
-      `🔀 CONDIÇÃO: "${conditionData.field}" ${operatorSymbol} "${conditionData.value}" → ${pathName}`,
-      {
-        campo: conditionData.field,
-        operador: conditionData.operator,
-        valorEsperado: conditionData.value,
-        resultado: conditionMet ? 'TRUE' : 'FALSE',
-        caminhoEscolhido: pathName,
-        proximosNos: targetEdges.length,
-      }
-    )
+      logger.condition(
+        `🔀 CONDIÇÃO HTTP: "${conditionData.httpConfig.url}" → resposta.${conditionData.httpConfig.responseField} ${operatorSymbol} "${conditionData.httpConfig.value}" → ${pathName}`,
+        {
+          url: conditionData.httpConfig.url,
+          metodo: conditionData.httpConfig.method || 'GET',
+          campoResposta: conditionData.httpConfig.responseField,
+          operador: conditionData.httpConfig.operator,
+          valorEsperado: conditionData.httpConfig.value,
+          resultado: conditionMet ? 'TRUE' : 'FALSE',
+          caminhoEscolhido: pathName,
+          proximosNos: targetEdges.length,
+        }
+      )
+    } else {
+      const operatorSymbol = {
+        EQUALS: '==',
+        NOT_EQUALS: '!=',
+        CONTAINS: 'contém',
+        GREATER_THAN: '>',
+        LESS_THAN: '<',
+      }[conditionData.operator || 'EQUALS'] || conditionData.operator
+
+      logger.condition(
+        `🔀 CONDIÇÃO: "${conditionData.field}" ${operatorSymbol} "${conditionData.value}" → ${pathName}`,
+        {
+          campo: conditionData.field,
+          operador: conditionData.operator,
+          valorEsperado: conditionData.value,
+          resultado: conditionMet ? 'TRUE' : 'FALSE',
+          caminhoEscolhido: pathName,
+          proximosNos: targetEdges.length,
+        }
+      )
+    }
 
     // Se não encontrou nenhuma edge correta, encerra o flow neste ponto (sem erro)
     if (targetEdges.length === 0) {
@@ -749,6 +798,155 @@ export class FlowEngine {
   }
 
   /**
+   * Avalia uma condição HTTP: faz request e avalia resposta
+   * 
+   * @param httpConfig - Configuração da condição HTTP
+   * @param data - Dados do webhook (para interpolar variáveis)
+   * @returns true se a condição foi atendida, false caso contrário
+   */
+  private async evaluateHttpCondition(
+    httpConfig: {
+      url: string
+      method?: string
+      headers?: Record<string, string>
+      body?: Record<string, unknown>
+      responseField: string
+      operator: string
+      value: string | number
+    },
+    data: Record<string, unknown>
+  ): Promise<boolean> {
+    if (!httpConfig.url || httpConfig.url.trim() === '') {
+      logger.condition('URL vazia na condição HTTP → FALSE')
+      return false
+    }
+
+    // Interpola variáveis na URL
+    const url = this.interpolateVariables(httpConfig.url, data)
+    const method = (httpConfig.method as 'GET' | 'POST' | 'PUT' | 'DELETE') || HTTP_METHODS.GET
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(httpConfig.headers || {}),
+    }
+    
+    // Interpola variáveis nos headers
+    const interpolatedHeaders: Record<string, string> = {}
+    for (const [key, value] of Object.entries(headers)) {
+      interpolatedHeaders[key] = this.interpolateVariables(value, data)
+    }
+    
+    // Interpola variáveis no body se necessário
+    let body: string | undefined
+    if (httpConfig.body) {
+      body = this.interpolateVariables(
+        JSON.stringify(httpConfig.body),
+        data
+      )
+    }
+
+    try {
+      logger.condition(`🌐 Executando request HTTP para condição: ${method} ${url}`, {
+        url,
+        method,
+        responseField: httpConfig.responseField,
+      })
+
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), HTTP_TIMEOUT)
+
+      const response = await fetch(url, {
+        method,
+        headers: interpolatedHeaders,
+        body,
+        signal: controller.signal,
+      })
+
+      clearTimeout(timeoutId)
+
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Erro desconhecido')
+        logger.condition(`❌ Request HTTP falhou: ${response.status} - ${errorText} → FALSE`)
+        return false
+      }
+
+      // Tenta parsear a resposta como JSON
+      let responseData: Record<string, unknown>
+      try {
+        responseData = await response.json()
+      } catch {
+        // Se não for JSON, tenta como texto
+        const text = await response.text()
+        logger.condition(`⚠️ Resposta HTTP não é JSON, usando como texto: ${text}`)
+        responseData = { _text: text }
+      }
+
+      // Obtém o valor do campo na resposta
+      const responseFieldPath = httpConfig.responseField.trim()
+      const fieldValue = this.getNestedValue(responseData, responseFieldPath)
+      const conditionValue = httpConfig.value
+
+      // Se o valor não foi encontrado, retorna false
+      if (fieldValue === undefined || fieldValue === null) {
+        logger.condition(`Campo '${responseFieldPath}' não encontrado na resposta HTTP → FALSE`, {
+          responseData: JSON.stringify(responseData).substring(0, 200),
+        })
+        return false
+      }
+
+      // Avalia a condição com base no operador
+      let result: boolean
+      switch (httpConfig.operator) {
+        case CONDITION_OPERATORS.EQUALS:
+          result = String(fieldValue) === String(conditionValue)
+          break
+        case CONDITION_OPERATORS.NOT_EQUALS:
+          result = String(fieldValue) !== String(conditionValue)
+          break
+        case CONDITION_OPERATORS.CONTAINS:
+          result = String(fieldValue).includes(String(conditionValue))
+          break
+        case CONDITION_OPERATORS.GREATER_THAN: {
+          const numValue = Number(fieldValue)
+          const numCondition = Number(conditionValue)
+          result = !isNaN(numValue) && !isNaN(numCondition) && numValue > numCondition
+          break
+        }
+        case CONDITION_OPERATORS.LESS_THAN: {
+          const numValue = Number(fieldValue)
+          const numCondition = Number(conditionValue)
+          result = !isNaN(numValue) && !isNaN(numCondition) && numValue < numCondition
+          break
+        }
+        default:
+          logger.warn(`Operador desconhecido: ${httpConfig.operator} → FALSE`)
+          result = false
+      }
+
+      const operatorSymbol = {
+        [CONDITION_OPERATORS.EQUALS]: '==',
+        [CONDITION_OPERATORS.NOT_EQUALS]: '!=',
+        [CONDITION_OPERATORS.CONTAINS]: 'contém',
+        [CONDITION_OPERATORS.GREATER_THAN]: '>',
+        [CONDITION_OPERATORS.LESS_THAN]: '<',
+      }[httpConfig.operator] || httpConfig.operator
+
+      logger.condition(`Avaliação HTTP: resposta.${responseFieldPath} ${operatorSymbol} "${conditionValue}"`, {
+        valueFound: fieldValue,
+        valueType: typeof fieldValue,
+        result: result ? 'TRUE → segue pelo caminho YES' : 'FALSE → segue pelo caminho NO',
+      })
+
+      return result
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        logger.condition(`⏱️ Timeout ao executar request HTTP (${HTTP_TIMEOUT}ms) → FALSE`)
+        return false
+      }
+      throw error
+    }
+  }
+
+  /**
    * Avalia uma condição baseada nos dados do webhook
    * 
    * @param condition - Dados da condição
@@ -815,7 +1013,7 @@ export class FlowEngine {
       [CONDITION_OPERATORS.CONTAINS]: 'contém',
       [CONDITION_OPERATORS.GREATER_THAN]: '>',
       [CONDITION_OPERATORS.LESS_THAN]: '<',
-    }[condition.operator] || condition.operator
+    }[condition.operator || 'EQUALS'] || condition.operator
 
     logger.condition(`Avaliação: "${fieldPath}" ${operatorSymbol} "${conditionValue}"`, {
       valueFound: fieldValue,

@@ -15,10 +15,32 @@ import { CONDITION_HANDLES } from '@/shared/lib/constants'
  * Componente visual de nó de condição
  */
 export function ConditionNode({ data }: NodeProps<ConditionNodeData>) {
-  const hasField = data.field && data.field.trim() !== ''
-  const displayText = hasField 
-    ? `${data.field} ${data.operator} ${String(data.value)}`
-    : 'Configure a condição'
+  const conditionType = data.conditionType || 'FIELD'
+  
+  let displayText: string
+  let hasConfig = false
+  
+  if (conditionType === 'HTTP_REQUEST') {
+    const hasUrl = data.httpConfig?.url && data.httpConfig.url.trim() !== ''
+    const hasResponseField = data.httpConfig?.responseField && data.httpConfig.responseField.trim() !== ''
+    hasConfig = hasUrl && hasResponseField
+    
+    if (hasConfig) {
+      const method = data.httpConfig?.method || 'GET'
+      const responseField = data.httpConfig.responseField
+      const operator = data.httpConfig.operator || 'EQUALS'
+      const value = data.httpConfig.value
+      displayText = `${method} → ${responseField} ${operator} ${String(value)}`
+    } else {
+      displayText = 'Configure a condição HTTP'
+    }
+  } else {
+    const hasField = data.field && data.field.trim() !== ''
+    hasConfig = hasField
+    displayText = hasField 
+      ? `${data.field} ${data.operator || 'EQUALS'} ${String(data.value || '')}`
+      : 'Configure a condição'
+  }
 
   return (
     <div className="px-4 py-2 shadow-md rounded-md bg-yellow-500 text-white min-w-[180px] relative">
@@ -26,7 +48,7 @@ export function ConditionNode({ data }: NodeProps<ConditionNodeData>) {
         <GitBranch className="w-4 h-4" />
         <div className="font-bold text-sm">Condition</div>
       </div>
-      <div className={`mt-2 text-xs ${!hasField ? 'italic opacity-75' : ''}`}>
+      <div className={`mt-2 text-xs ${!hasConfig ? 'italic opacity-75' : ''}`}>
         {displayText}
       </div>
       

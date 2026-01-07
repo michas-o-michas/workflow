@@ -131,37 +131,6 @@ export default function EditFlowBuilderPage() {
     }
   }
 
-  const handleTest = async () => {
-    const triggerNode = nodes.find((n) => n.type === 'trigger')
-    const event = (triggerNode?.data as { event?: string })?.event || 'lead.converted'
-    
-    const testPayload = {
-      event,
-      version: '1.0',
-      occurredAt: new Date().toISOString(),
-      data: {
-        lead: {
-          id: 'lead_test_123',
-          name: 'Teste',
-          source: 'whatsapp',
-          age: 16,
-        },
-      },
-    }
-
-    try {
-      await fetch('/api/webhook', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(testPayload),
-      })
-      alert('Webhook de teste enviado! Verifique os logs.')
-    } catch (error) {
-      console.error('Error sending test webhook:', error)
-      alert('Erro ao enviar webhook de teste')
-    }
-  }
-
   if (loading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -207,7 +176,6 @@ export default function EditFlowBuilderPage() {
           initialEdges={edges}
           onSave={handleSave}
           onNodeSave={handleNodeSave}
-          onTest={handleTest}
         />
       </ReactFlowProvider>
     </div>

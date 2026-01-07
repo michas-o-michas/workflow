@@ -2,6 +2,8 @@ export type {
   NodeType,
   TriggerNodeData,
   ConditionNodeData,
+  ConditionType,
+  HttpConditionConfig,
   ActionNodeData,
   EndNodeData,
   FlowNodeData,

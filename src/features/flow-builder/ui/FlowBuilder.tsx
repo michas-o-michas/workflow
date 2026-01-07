@@ -42,8 +42,6 @@ interface FlowBuilderProps {
   onSave?: (nodes: Node<FlowNodeData>[], edges: Edge[]) => void
   /** Callback chamado ao salvar um nó individual (salva no banco) */
   onNodeSave?: (nodes: Node<FlowNodeData>[], edges: Edge[]) => Promise<void>
-  /** Callback chamado ao testar o flow */
-  onTest?: () => void
 }
 
 /**
@@ -56,7 +54,6 @@ export function FlowBuilder({
   initialEdges = [],
   onSave,
   onNodeSave,
-  onTest,
 }: FlowBuilderProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges)
@@ -333,11 +330,6 @@ export function FlowBuilder({
           <Button onClick={handleSave} className="w-full" type="button">
             Salvar Flow
           </Button>
-          {onTest && (
-            <Button onClick={onTest} variant="secondary" className="w-full" type="button">
-              Testar Flow
-            </Button>
-          )}
         </div>
       </div>
 

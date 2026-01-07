@@ -30,15 +30,44 @@ export type ConditionOperator =
   | 'NOT_EQUALS'
 
 /**
- * Dados de um nó do tipo Condition
+ * Tipo de condição
  */
-export interface ConditionNodeData {
-  /** Caminho do campo no payload (ex: "lead.age" ou "lead.source") */
-  field: string
+export type ConditionType = 'FIELD' | 'HTTP_REQUEST'
+
+/**
+ * Configuração de uma condição HTTP
+ */
+export interface HttpConditionConfig {
+  /** URL da requisição (pode conter variáveis {{path}}) */
+  url: string
+  /** Método HTTP */
+  method?: HttpMethod
+  /** Headers customizados */
+  headers?: Record<string, string>
+  /** Body da requisição (pode conter variáveis {{path}}) */
+  body?: Record<string, unknown>
+  /** Caminho do campo na resposta HTTP para avaliar (ex: "status" ou "data.active") */
+  responseField: string
   /** Operador de comparação */
   operator: ConditionOperator
   /** Valor esperado para comparação */
   value: string | number
+}
+
+/**
+ * Dados de um nó do tipo Condition
+ */
+export interface ConditionNodeData {
+  /** Tipo de condição: FIELD (campo do payload) ou HTTP_REQUEST (request HTTP) */
+  conditionType?: ConditionType
+  /** Caminho do campo no payload (ex: "lead.age" ou "lead.source") - usado quando conditionType é FIELD */
+  field?: string
+  /** Operador de comparação - usado quando conditionType é FIELD */
+  operator?: ConditionOperator
+  /** Valor esperado para comparação - usado quando conditionType é FIELD */
+  value?: string | number
+  /** Configuração de condição HTTP - usado quando conditionType é HTTP_REQUEST */
+  httpConfig?: HttpConditionConfig
 }
 
 /**

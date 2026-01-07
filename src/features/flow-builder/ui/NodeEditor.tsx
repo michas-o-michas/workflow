@@ -55,10 +55,27 @@ export function NodeEditor({ node, onUpdate, onDelete }: NodeEditorProps) {
       let nodeData: any = { ...node.data }
       
       if (node.type === 'condition') {
-        nodeData = {
-          field: nodeData.field || '',
-          operator: nodeData.operator || 'EQUALS',
-          value: nodeData.value || '',
+        const conditionType = nodeData.conditionType || 'FIELD'
+        if (conditionType === 'HTTP_REQUEST') {
+          nodeData = {
+            conditionType: 'HTTP_REQUEST',
+            httpConfig: {
+              url: nodeData.httpConfig?.url || '',
+              method: nodeData.httpConfig?.method || 'GET',
+              headers: nodeData.httpConfig?.headers || {},
+              body: nodeData.httpConfig?.body || undefined,
+              responseField: nodeData.httpConfig?.responseField || '',
+              operator: nodeData.httpConfig?.operator || 'EQUALS',
+              value: nodeData.httpConfig?.value || '',
+            },
+          }
+        } else {
+          nodeData = {
+            conditionType: 'FIELD',
+            field: nodeData.field || '',
+            operator: nodeData.operator || 'EQUALS',
+            value: nodeData.value || '',
+          }
         }
       } else if (node.type === 'action') {
         // Inicializa config baseado no tipo de ação
@@ -127,11 +144,28 @@ export function NodeEditor({ node, onUpdate, onDelete }: NodeEditorProps) {
     let dataToSave: FlowNodeData
     
     if (node.type === 'condition') {
-      dataToSave = {
-        field: formData.field || '',
-        operator: formData.operator || 'EQUALS',
-        value: formData.value || '',
-      } as ConditionNodeData
+      const conditionType = formData.conditionType || 'FIELD'
+      if (conditionType === 'HTTP_REQUEST') {
+        dataToSave = {
+          conditionType: 'HTTP_REQUEST',
+          httpConfig: {
+            url: formData.httpConfig?.url || '',
+            method: formData.httpConfig?.method || 'GET',
+            headers: formData.httpConfig?.headers || {},
+            body: formData.httpConfig?.body || undefined,
+            responseField: formData.httpConfig?.responseField || '',
+            operator: formData.httpConfig?.operator || 'EQUALS',
+            value: formData.httpConfig?.value || '',
+          },
+        } as ConditionNodeData
+      } else {
+        dataToSave = {
+          conditionType: 'FIELD',
+          field: formData.field || '',
+          operator: formData.operator || 'EQUALS',
+          value: formData.value || '',
+        } as ConditionNodeData
+      }
     } else if (node.type === 'action') {
       dataToSave = {
         type: formData.type || 'LOG',
@@ -186,47 +220,244 @@ export function NodeEditor({ node, onUpdate, onDelete }: NodeEditorProps) {
         )
 
       case 'condition':
-        const isFieldEmpty = !formData.field || formData.field.trim() === ''
+        const conditionType = formData.conditionType || 'FIELD'
+        const isFieldEmpty = conditionType === 'FIELD' && (!formData.field || formData.field.trim() === '')
+        const isHttpConfigEmpty = conditionType === 'HTTP_REQUEST' && (
+          !formData.httpConfig?.url || formData.httpConfig.url.trim() === '' ||
+          !formData.httpConfig?.responseField || formData.httpConfig.responseField.trim() === ''
+        )
+        
         return (
           <div className="space-y-4">
-            <div>
-              <Input
-                label="Campo do Payload"
-                value={formData.field || ''}
-                onChange={(e) => setFormData({ ...formData, field: e.target.value })}
-                placeholder="ex: lead.age ou lead.source"
-                className={isFieldEmpty ? 'border-red-300' : ''}
-              />
-              {isFieldEmpty && (
-                <p className="text-xs text-red-600 mt-1">
-                  ⚠️ Campo obrigatório!
-                </p>
-              )}
-            </div>
             <div className="space-y-2">
-              <Label>Operador</Label>
+              <Label>Tipo de Condição</Label>
               <Select
-                value={formData.operator || 'EQUALS'}
-                onValueChange={(value) => setFormData({ ...formData, operator: value })}
+                value={conditionType}
+                onValueChange={(value) => {
+                  // Reseta dados quando muda o tipo
+                  if (value === 'HTTP_REQUEST') {
+                    setFormData({
+                      conditionType: 'HTTP_REQUEST',
+                      httpConfig: {
+                        url: '',
+                        method: 'GET',
+                        headers: {},
+                        body: undefined,
+                        responseField: '',
+                        operator: 'EQUALS',
+                        value: '',
+                      },
+                    })
+                  } else {
+                    setFormData({
+                      conditionType: 'FIELD',
+                      field: '',
+                      operator: 'EQUALS',
+                      value: '',
+                    })
+                  }
+                }}
               >
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione um operador" />
+                  <SelectValue placeholder="Selecione o tipo" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="EQUALS">Igual a (EQUALS)</SelectItem>
-                  <SelectItem value="NOT_EQUALS">Diferente de (NOT_EQUALS)</SelectItem>
-                  <SelectItem value="CONTAINS">Contém (CONTAINS)</SelectItem>
-                  <SelectItem value="GREATER_THAN">Maior que (GREATER_THAN)</SelectItem>
-                  <SelectItem value="LESS_THAN">Menor que (LESS_THAN)</SelectItem>
+                  <SelectItem value="FIELD">Campo do Payload</SelectItem>
+                  <SelectItem value="HTTP_REQUEST">Request HTTP</SelectItem>
                 </SelectContent>
               </Select>
             </div>
-            <Input
-              label="Valor"
-              value={String(formData.value || '')}
-              onChange={(e) => setFormData({ ...formData, value: e.target.value })}
-              placeholder="Valor esperado"
-            />
+
+            {conditionType === 'FIELD' ? (
+              <>
+                <div>
+                  <Input
+                    label="Campo do Payload"
+                    value={formData.field || ''}
+                    onChange={(e) => setFormData({ ...formData, field: e.target.value })}
+                    placeholder="ex: lead.age ou lead.source"
+                    className={isFieldEmpty ? 'border-red-300' : ''}
+                  />
+                  {isFieldEmpty && (
+                    <p className="text-xs text-red-600 mt-1">
+                      ⚠️ Campo obrigatório!
+                    </p>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label>Operador</Label>
+                  <Select
+                    value={formData.operator || 'EQUALS'}
+                    onValueChange={(value) => setFormData({ ...formData, operator: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um operador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EQUALS">Igual a (EQUALS)</SelectItem>
+                      <SelectItem value="NOT_EQUALS">Diferente de (NOT_EQUALS)</SelectItem>
+                      <SelectItem value="CONTAINS">Contém (CONTAINS)</SelectItem>
+                      <SelectItem value="GREATER_THAN">Maior que (GREATER_THAN)</SelectItem>
+                      <SelectItem value="LESS_THAN">Menor que (LESS_THAN)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  label="Valor"
+                  value={String(formData.value || '')}
+                  onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                  placeholder="Valor esperado"
+                />
+              </>
+            ) : (
+              <>
+                <div>
+                  <Input
+                    label="URL"
+                    value={formData.httpConfig?.url || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        httpConfig: {
+                          ...formData.httpConfig,
+                          url: e.target.value,
+                          method: formData.httpConfig?.method || 'GET',
+                          headers: formData.httpConfig?.headers || {},
+                          body: formData.httpConfig?.body,
+                          responseField: formData.httpConfig?.responseField || '',
+                          operator: formData.httpConfig?.operator || 'EQUALS',
+                          value: formData.httpConfig?.value || '',
+                        },
+                      })
+                    }
+                    placeholder="https://api.example.com/leads/{{data.lead.id}}"
+                    className={!formData.httpConfig?.url || formData.httpConfig.url.trim() === '' ? 'border-red-300' : ''}
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    Use variáveis como <code>{'{{data.lead.id}}'}</code> para interpolar dados do webhook
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Método HTTP</Label>
+                  <Select
+                    value={formData.httpConfig?.method || 'GET'}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        httpConfig: {
+                          ...formData.httpConfig,
+                          method: value,
+                          url: formData.httpConfig?.url || '',
+                          headers: formData.httpConfig?.headers || {},
+                          body: formData.httpConfig?.body,
+                          responseField: formData.httpConfig?.responseField || '',
+                          operator: formData.httpConfig?.operator || 'EQUALS',
+                          value: formData.httpConfig?.value || '',
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione o método" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="GET">GET</SelectItem>
+                      <SelectItem value="POST">POST</SelectItem>
+                      <SelectItem value="PUT">PUT</SelectItem>
+                      <SelectItem value="DELETE">DELETE</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Input
+                    label="Campo da Resposta para Avaliar"
+                    value={formData.httpConfig?.responseField || ''}
+                    onChange={(e) =>
+                      setFormData({
+                        ...formData,
+                        httpConfig: {
+                          ...formData.httpConfig,
+                          responseField: e.target.value,
+                          url: formData.httpConfig?.url || '',
+                          method: formData.httpConfig?.method || 'GET',
+                          headers: formData.httpConfig?.headers || {},
+                          body: formData.httpConfig?.body,
+                          operator: formData.httpConfig?.operator || 'EQUALS',
+                          value: formData.httpConfig?.value || '',
+                        },
+                      })
+                    }
+                    placeholder="ex: status ou data.active"
+                    className={!formData.httpConfig?.responseField || formData.httpConfig.responseField.trim() === '' ? 'border-red-300' : ''}
+                  />
+                  {(!formData.httpConfig?.responseField || formData.httpConfig.responseField.trim() === '') && (
+                    <p className="text-xs text-red-600 mt-1">
+                      ⚠️ Campo obrigatório!
+                    </p>
+                  )}
+                  <p className="text-xs text-gray-500 mt-1">
+                    Caminho do campo na resposta JSON (ex: "status" ou "data.active")
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Operador</Label>
+                  <Select
+                    value={formData.httpConfig?.operator || 'EQUALS'}
+                    onValueChange={(value) =>
+                      setFormData({
+                        ...formData,
+                        httpConfig: {
+                          ...formData.httpConfig,
+                          operator: value,
+                          url: formData.httpConfig?.url || '',
+                          method: formData.httpConfig?.method || 'GET',
+                          headers: formData.httpConfig?.headers || {},
+                          body: formData.httpConfig?.body,
+                          responseField: formData.httpConfig?.responseField || '',
+                          value: formData.httpConfig?.value || '',
+                        },
+                      })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um operador" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="EQUALS">Igual a (EQUALS)</SelectItem>
+                      <SelectItem value="NOT_EQUALS">Diferente de (NOT_EQUALS)</SelectItem>
+                      <SelectItem value="CONTAINS">Contém (CONTAINS)</SelectItem>
+                      <SelectItem value="GREATER_THAN">Maior que (GREATER_THAN)</SelectItem>
+                      <SelectItem value="LESS_THAN">Menor que (LESS_THAN)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Input
+                  label="Valor Esperado"
+                  value={String(formData.httpConfig?.value || '')}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      httpConfig: {
+                        ...formData.httpConfig,
+                        value: e.target.value,
+                        url: formData.httpConfig?.url || '',
+                        method: formData.httpConfig?.method || 'GET',
+                        headers: formData.httpConfig?.headers || {},
+                        body: formData.httpConfig?.body,
+                        responseField: formData.httpConfig?.responseField || '',
+                        operator: formData.httpConfig?.operator || 'EQUALS',
+                      },
+                    })
+                  }
+                  placeholder="Valor esperado na resposta"
+                />
+                {isHttpConfigEmpty && (
+                  <p className="text-xs text-red-600">
+                    ⚠️ Configure URL e Campo da Resposta!
+                  </p>
+                )}
+              </>
+            )}
           </div>
         )
 
